@@ -1,0 +1,12 @@
+import { useEffect, useState } from 'react'; import { Link } from 'react-router-dom'; import api from '../services/api'; import { CRIIndicator, Modal, Notice, useAction, Empty } from '../components/ui'; import { useAuth } from '../context/AuthContext';
+export default function Review({ mode }) {
+  const { user } = useAuth(), review = mode === 'review', canAct = ['administrator', 'technician'].includes(user.role), [rows, setRows] = useState([]), [sel, setSel] = useState(null), [note, setNote] = useState(''), a = useAction();
+  const load = () => api.get(review ? '/review' : '/quarantine').then(setRows); useEffect(() => { load(); }, [mode]);
+  const act = async verb => { const r = await a.run(() => api.post(`/${mode}/${sel.id}/${verb}`, { note })); if (r) { setSel(null); setNote(''); load(); } };
+  return <><h1>{review ? 'Manual review queue' : 'Quarantine'}</h1><p className="text-muted">{review ? 'Calibrations with CRI 50–69, or early records with a warning, wait here for a second person.' : 'Calibrations with CRI below 50 are held here until someone else releases or rejects them.'}</p>
+    <div className="panel p-0 table-responsive"><table className="table mb-0"><thead><tr><th>Equipment</th><th>Date</th><th>CRI</th><th>Technician</th><th></th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.code} {r.equipment_name}</td><td>{r.calibration_date}</td><td><CRIIndicator value={r.cri} /></td><td>{r.technician}</td>
+      <td className="text-end"><Link className="me-3" to={`/technician/verification?id=${r.id}`}>View checks</Link>{canAct && (r.technician_id === user.id ? <span className="text-muted small">You entered this</span> : <button className="btn btn-sm btn-brand" onClick={() => { setSel(r); a.run(async () => {}); }}>Decide</button>)}</td></tr>)}</tbody></table>
+      {!rows.length && <Empty>Nothing is waiting here.</Empty>}</div>
+    {sel && <Modal title={`${sel.code} · CRI ${sel.cri}`} onClose={() => setSel(null)}><Notice error={a.error} /><label className="form-label">Written note (required)</label><textarea className="form-control mb-3" rows="3" value={note} onChange={e => setNote(e.target.value)} />
+      <div className="d-flex gap-2"><button className="btn btn-brand" onClick={() => act(review ? 'approve' : 'release')}>{review ? 'Approve' : 'Release'}</button><button className="btn btn-outline-danger" onClick={() => act('reject')}>Reject</button></div></Modal>}</>;
+}

@@ -1,0 +1,7 @@
+import { useEffect, useState } from 'react'; import { Link } from 'react-router-dom'; import api from '../services/api'; import { StatCard, StatusBadge } from '../components/ui';
+export default function Compliance() {
+  const [d, setD] = useState(null); useEffect(() => { api.get('/compliance/summary').then(setD); }, []); if (!d) return <p>Loading…</p>;
+  return <><h1>Compliance scheduler</h1><p className="text-muted">Status is refreshed every day at 06:00. Instruments are Due Soon in the last 30 days before their date.</p>
+    <div className="row g-3 mb-3"><div className="col-6 col-md-3"><StatCard label="Total" value={d.total} /></div><div className="col-6 col-md-3"><StatCard kind="ok" label="Calibrated" value={d.calibrated} /></div><div className="col-6 col-md-3"><StatCard kind="warn" label="Due soon" value={d.dueSoon} /></div><div className="col-6 col-md-3"><StatCard kind="bad" label="Expired" value={d.expired} /></div></div>
+    <div className="panel p-0 table-responsive"><table className="table mb-0"><thead><tr><th>Equipment</th><th>Department</th><th>Next due</th><th>Days left</th><th>Status</th></tr></thead><tbody>{d.equipment.map(e => <tr key={e.id}><td><Link to={`/equipment/${e.id}`}>{e.code}</Link> {e.name}</td><td>{e.department}</td><td>{e.next_calibration_date || '–'}</td><td className="mono">{e.days ?? '–'}</td><td><StatusBadge value={e.compliance_status} /></td></tr>)}</tbody></table></div></>;
+}

@@ -1,0 +1,11 @@
+import { useEffect, useState } from 'react'; import { useParams, Link } from 'react-router-dom'; import api from '../services/api'; import { StatusBadge, CRIIndicator, Notice } from '../components/ui'; import { useAuth } from '../context/AuthContext';
+export default function EquipmentDetail() {
+  const { id } = useParams(), { user } = useAuth(), [e, setE] = useState(null), [t, setT] = useState([]), [dcf, setDcf] = useState(null), [err, setErr] = useState('');
+  useEffect(() => { api.get(`/equipment/${id}`).then(setE).catch(x => setErr(x.message)); api.get(`/equipment/${id}/timeline`).then(setT).catch(() => {}); if (user.role !== 'student') api.get(`/equipment/${id}/dcf`).then(setDcf).catch(() => {}); }, [id]);
+  if (err) return <Notice error={err} />; if (!e) return <p>Loading…</p>;
+  const skip = ['id', 'created_by', 'created_at'];
+  return <><h1>{e.name} <small className="text-muted mono fs-6">{e.code}</small></h1><p><StatusBadge value={e.compliance_status} /> next due <b>{e.next_calibration_date || 'not set'}</b></p>
+    <div className="row"><div className="col-lg-6"><div className="panel"><h5>Details</h5><table className="table table-sm mb-0"><tbody>{Object.entries(e).filter(([k, v]) => !skip.includes(k) && v !== null).map(([k, v]) => <tr key={k}><td className="text-muted">{k.replace(/_/g, ' ')}</td><td>{String(v)}</td></tr>)}</tbody></table></div></div>
+      <div className="col-lg-6">{dcf && dcf.n > 0 && <div className="panel"><h5>Calibration fingerprint</h5><p className="mb-1">{dcf.n} accepted record(s){dcf.n < 3 && ' – still learning'}</p><p className="mono small mb-0">mean {dcf.mean_dev.toFixed(1)}% · std {dcf.std_dev.toFixed(1)} · drift {dcf.drift_slope.toFixed(3)}%/day</p></div>}
+        <div className="panel"><h5>Lifecycle timeline</h5>{!t.length && <p className="text-muted mb-0">No history yet.</p>}{t.map((x, i) => <div key={i} className="check Passed" style={{ borderColor: x.kind === 'maintenance' ? 'var(--info)' : undefined }}><b>{x.date}</b> · {x.kind === 'calibration' ? <>Calibration <StatusBadge value={x.decision} /> {x.cri != null && user.role !== 'student' && <CRIIndicator value={x.cri} />} {x.band}{user.role !== 'student' && <> · <Link to={`/technician/verification?id=${x.id}`}>checks</Link></>}</> : <>Maintenance: {x.type}</>}</div>)}</div></div></div></>;
+}

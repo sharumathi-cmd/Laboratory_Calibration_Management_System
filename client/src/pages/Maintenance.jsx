@@ -1,0 +1,13 @@
+import { useEffect, useState } from 'react'; import api from '../services/api'; import { Notice, useAction, Empty } from '../components/ui'; import { useAuth } from '../context/AuthContext';
+export default function Maintenance() {
+  const { user } = useAuth(), can = ['administrator', 'technician'].includes(user.role), [rows, setRows] = useState([]), [eq, setEq] = useState([]), a = useAction();
+  const blank = { equipment_id: '', date: new Date().toISOString().slice(0, 10), type: 'Repair', description: '', parts_replaced: '' }, [f, setF] = useState(blank);
+  const load = () => api.get('/maintenance').then(setRows); useEffect(() => { load(); if (can) api.get('/equipment').then(setEq); }, []);
+  return <><h1>Maintenance log</h1>{can && <form className="panel" onSubmit={async e => { e.preventDefault(); const r = await a.run(() => api.post('/maintenance', f), 'Maintenance recorded.'); if (r) { setF(blank); load(); } }}><Notice error={a.error} ok={a.ok} />
+    <div className="row g-2"><div className="col-md-4"><select className="form-select" required value={f.equipment_id} onChange={e => setF({ ...f, equipment_id: e.target.value })}><option value="">Equipment…</option>{eq.map(x => <option key={x.id} value={x.id}>{x.code} – {x.name}</option>)}</select></div>
+      <div className="col-md-2"><input type="date" className="form-control" value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></div>
+      <div className="col-md-2"><select className="form-select" value={f.type} onChange={e => setF({ ...f, type: e.target.value })}><option>Repair</option><option>Preventive</option><option>Part replacement</option><option>Cleaning</option></select></div>
+      <div className="col-md-4"><input className="form-control" placeholder="Parts replaced" value={f.parts_replaced} onChange={e => setF({ ...f, parts_replaced: e.target.value })} /></div>
+      <div className="col-md-9"><input className="form-control" placeholder="What was done" value={f.description} onChange={e => setF({ ...f, description: e.target.value })} /></div><div className="col-md-3"><button className="btn btn-brand w-100">Add entry</button></div></div></form>}
+    <div className="panel p-0 table-responsive"><table className="table mb-0"><thead><tr><th>Date</th><th>Equipment</th><th>Type</th><th>Description</th><th>Parts</th><th>By</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.date}</td><td>{r.code}</td><td>{r.type}</td><td>{r.description}</td><td>{r.parts_replaced}</td><td>{r.performed_by_name}</td></tr>)}</tbody></table>{!rows.length && <Empty>No maintenance recorded yet.</Empty>}</div></>;
+}

@@ -1,0 +1,17 @@
+const { buildDcf } = require('../engine/dcf'), { evaluate } = require('../engine/crve'), { decide, band } = require('../engine/decision');
+const eq = { serial: 'SN100', frequency: 365, maintenanceInterval: 180, usageHours: 500 };
+const hist = [{ date: '2023-01-10', maxDevPct: 30 }, { date: '2024-01-10', maxDevPct: 32 }, { date: '2025-01-10', maxDevPct: 31 }, { date: '2026-01-10', maxDevPct: 33 }];
+const baseCal = { date: '2027-01-10', certificateNo: 'CERT-2027-001', certificateDate: '2027-01-10', certificateSerial: 'SN100', hasFile: true, points: [{ within: true }] };
+const base = (o = {}) => ({ eq, devPct: 32, dcf: buildDcf(hist), lastDate: '2026-01-10', maint: [{ date: '2026-09-01' }], tech: null, ...o, cal: { ...baseCal, ...(o.cal || {}) } });
+test('DCF stats and drift', () => { const d = buildDcf(hist); expect(d.n).toBe(4); expect(d.meanDev).toBeCloseTo(31.5); expect(d.driftSlope).toBeGreaterThan(0); });
+test('DCF empty history', () => expect(buildDcf([]).n).toBe(0));
+test('weights add up to 100', () => expect(evaluate(base()).checks.reduce((s, c) => s + c.weight, 0)).toBe(100));
+test('always 7 checks', () => expect(evaluate(base()).checks).toHaveLength(7));
+test('normal calibration is accepted with CRI >= 70', () => { const r = evaluate(base()); expect(r.cri).toBeGreaterThanOrEqual(70); expect(decide(r.cri, r.checks, false).decision).toBe('accepted'); });
+test('sudden large change drops historical score', () => expect(evaluate(base({ devPct: 85 })).checks[0].score).toBeLessThanOrEqual(10));
+test('out of tolerance caps CRI at 49 and quarantines', () => { const r = evaluate(base({ devPct: 120, cal: { points: [{ within: false }] } })); expect(r.cri).toBeLessThanOrEqual(49); expect(decide(r.cri, r.checks).decision).toBe('quarantined'); });
+test('first record: historical is neutral 70 (learning)', () => expect(evaluate(base({ dcf: buildDcf([]), lastDate: null })).checks[0].score).toBe(70));
+test('late interval is penalised', () => expect(evaluate(base({ lastDate: '2025-01-10' })).checks[2].score).toBeLessThan(100));
+test('duplicate certificate lowers certificate check', () => expect(evaluate(base({ cal: { certificateDuplicate: true } })).checks[5].score).toBe(80));
+test('serial mismatch and missing file flagged', () => expect(evaluate(base({ cal: { certificateSerial: 'XX', hasFile: false } })).checks[5].score).toBe(60));
+test('bands and decisions', () => { expect(band(95)).toBe('Highly Reliable'); expect(decide(60).decision).toBe('pending_review'); expect(decide(75, [{ no: 3, status: 'Warning' }], true).decision).toBe('pending_review'); });
